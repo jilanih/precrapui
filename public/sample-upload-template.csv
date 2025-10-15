@@ -1,0 +1,4 @@
+PB C-ASIN,1P C-ASIN,positioning,FLC Check,PCOGS+IB-VFCC Check,CTS Model,Tariff Impact >20%,pricing_recommendation,llm_our_product,llm_our_price,llm_competitor_product,llm_competitor_price
+B08SAMPLE1,B0DSAMPLE1,COMPARABLE,Pass,Skipped,Skipped,Skipped,Price Match,Sample Product 1,$19.99,Competitor Product 1,$29.99
+B08SAMPLE2,B0DSAMPLE2,UNDER-SPEC'D,Pass,Skipped,Skipped,Skipped,Revert to Base Price,Sample Product 2,$24.99,Competitor Product 2,$34.99
+B08SAMPLE3,B0DSAMPLE3,OVER-SPEC'D,Fail,Skipped,Skipped,Skipped,Price Match,Sample Product 3,$39.99,Competitor Product 3,$44.99
