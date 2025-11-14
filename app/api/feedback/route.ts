@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
 
-const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' })
-const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'precrapui-dashboard-data-jilanih'
+const s3Client = new S3Client({ region: process.env.NEXT_PUBLIC_AWS_REGION || 'us-east-2' })
+const BUCKET_NAME = process.env.NEXT_PUBLIC_S3_BUCKET || 'precrapui-dashboard-data-jilanih-us-east-2'
 
 export async function POST(request: NextRequest) {
   try {
