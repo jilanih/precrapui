@@ -1,14 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
-
-const s3Client = new S3Client({ 
-  region: process.env.NEXT_PUBLIC_AWS_REGION || 'us-east-2',
-  credentials: {
-    accessKeyId: process.env.S3_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || ''
-  }
-})
-const BUCKET_NAME = process.env.NEXT_PUBLIC_S3_BUCKET || 'precrapui-dashboard-data-jilanih-us-east-2'
+import { writeFile } from 'fs/promises'
+import path from 'path'
 
 // Simple in-memory lock to prevent race conditions
 let isWriting = false
@@ -48,25 +40,19 @@ export async function POST(request: NextRequest) {
       _lastUpdated: timestamp
     }))
     
-    // Read existing data from S3
+    // Read existing data
+    const dataPath = path.join(process.cwd(), 'public', 'workflow-data.json')
+    const fs = require('fs')
     let existingRecords: any[] = []
     
-    try {
-      const getCommand = new GetObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: 'workflow-data.json'
-      })
-      const response = await s3Client.send(getCommand)
-      const fileContent = await response.Body?.transformToString()
-      
-      if (fileContent) {
+    if (fs.existsSync(dataPath)) {
+      try {
+        const fileContent = await fs.promises.readFile(dataPath, 'utf-8')
         existingRecords = JSON.parse(fileContent)
+      } catch (error) {
+        console.log('No existing data or invalid JSON, starting fresh')
+        existingRecords = []
       }
-    } catch (error: any) {
-      if (error.name !== 'NoSuchKey') {
-        console.error('Error reading from S3:', error)
-      }
-      existingRecords = []
     }
     
     // Merge and deduplicate by PB C-ASIN
@@ -91,15 +77,8 @@ export async function POST(request: NextRequest) {
     // Convert back to array
     const finalRecords = Array.from(mergedMap.values())
     
-    // Save merged data to S3
-    const putCommand = new PutObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: 'workflow-data.json',
-      Body: JSON.stringify(finalRecords, null, 2),
-      ContentType: 'application/json'
-    })
-    
-    await s3Client.send(putCommand)
+    // Save merged data
+    await writeFile(dataPath, JSON.stringify(finalRecords, null, 2))
     
     const newASINCount = recordsWithTimestamp.filter((r: any) => 
       !existingRecords.some((e: any) => e['PB C-ASIN'] === r['PB C-ASIN'])
