@@ -129,7 +129,9 @@ export async function GET() {
   try {
     console.log('Fetching workflow data from S3...')
     console.log('Bucket:', BUCKET_NAME)
-    console.log('Has credentials:', !!process.env.S3_ACCESS_KEY_ID)
+    console.log('S3_ACCESS_KEY_ID exists:', !!process.env.S3_ACCESS_KEY_ID)
+    console.log('S3_ACCESS_KEY_ID value:', process.env.S3_ACCESS_KEY_ID ? 'SET' : 'NOT SET')
+    console.log('All env vars:', Object.keys(process.env).filter(k => k.includes('S3') || k.includes('AWS')))
     
     const command = new GetObjectCommand({
       Bucket: BUCKET_NAME,
