@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -17,8 +17,9 @@ import {
   TrendingUpIcon,
   TrendingDownIcon,
 } from "lucide-react"
+import { fetchWorkflowData, type WorkflowRecord } from "@/lib/workflow-data"
 
-// Mock data for ASIN performance
+// Mock data for ASIN performance (kept for fallback)
 const mockASINData = [
   {
     asin: "B08N5WRWNW",
@@ -82,27 +83,53 @@ const mockASINData = [
 
 export function ASINPerformanceDrilldown() {
   const [searchTerm, setSearchTerm] = useState("")
-  const [selectedASIN, setSelectedASIN] = useState<(typeof mockASINData)[0] | null>(null)
-  const [sortField, setSortField] = useState<string>("revenue")
+  const [selectedASIN, setSelectedASIN] = useState<any>(null)
+  const [sortField, setSortField] = useState<string>("PB C-ASIN")
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
+  const [data, setData] = useState<WorkflowRecord[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const filteredData = mockASINData.filter(
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true)
+      try {
+        const workflowData = await fetchWorkflowData()
+        setData(Array.isArray(workflowData) ? workflowData : [])
+      } catch (error) {
+        console.error('Error loading ASIN data:', error)
+        setData([])
+      }
+      setLoading(false)
+    }
+    
+    loadData()
+  }, [])
+
+  const filteredData = data.filter(
     (item) =>
-      item.asin.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.category.toLowerCase().includes(searchTerm.toLowerCase()),
+      (item['PB C-ASIN'] || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item['1P C-ASIN'] || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.positioning || '').toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
   const sortedData = [...filteredData].sort((a, b) => {
-    const aValue = a[sortField as keyof typeof a]
-    const bValue = b[sortField as keyof typeof b]
+    const aValue = a[sortField as keyof WorkflowRecord]
+    const bValue = b[sortField as keyof WorkflowRecord]
     const multiplier = sortDirection === "asc" ? 1 : -1
 
     if (typeof aValue === "number" && typeof bValue === "number") {
       return (aValue - bValue) * multiplier
     }
-    return String(aValue).localeCompare(String(bValue)) * multiplier
+    return String(aValue || '').localeCompare(String(bValue || '')) * multiplier
   })
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-muted-foreground">Loading ASIN data...</div>
+      </div>
+    )
+  }
 
   const getDecisionBadgeColor = (decision: string) => {
     switch (decision) {
@@ -171,11 +198,11 @@ export function ASINPerformanceDrilldown() {
                   <TableHead className="text-gray-300">
                     <Button
                       variant="ghost"
-                      onClick={() => handleSort("asin")}
+                      onClick={() => handleSort("PB C-ASIN")}
                       className="text-gray-300 hover:text-white p-0 h-auto font-medium"
                     >
-                      ASIN
-                      {sortField === "asin" &&
+                      PB C-ASIN
+                      {sortField === "PB C-ASIN" &&
                         (sortDirection === "asc" ? (
                           <ArrowUpIcon className="ml-1 h-4 w-4" />
                         ) : (
@@ -183,102 +210,56 @@ export function ASINPerformanceDrilldown() {
                         ))}
                     </Button>
                   </TableHead>
-                  <TableHead className="text-gray-300">Product</TableHead>
-                  <TableHead className="text-gray-300">
-                    <Button
-                      variant="ghost"
-                      onClick={() => handleSort("currentPrice")}
-                      className="text-gray-300 hover:text-white p-0 h-auto font-medium"
-                    >
-                      Current Price
-                      {sortField === "currentPrice" &&
-                        (sortDirection === "asc" ? (
-                          <ArrowUpIcon className="ml-1 h-4 w-4" />
-                        ) : (
-                          <ArrowDownIcon className="ml-1 h-4 w-4" />
-                        ))}
-                    </Button>
-                  </TableHead>
-                  <TableHead className="text-gray-300">Decision</TableHead>
-                  <TableHead className="text-gray-300">LLM Classification</TableHead>
-                  <TableHead className="text-gray-300">
-                    <Button
-                      variant="ghost"
-                      onClick={() => handleSort("revenue")}
-                      className="text-gray-300 hover:text-white p-0 h-auto font-medium"
-                    >
-                      Revenue
-                      {sortField === "revenue" &&
-                        (sortDirection === "asc" ? (
-                          <ArrowUpIcon className="ml-1 h-4 w-4" />
-                        ) : (
-                          <ArrowDownIcon className="ml-1 h-4 w-4" />
-                        ))}
-                    </Button>
-                  </TableHead>
-                  <TableHead className="text-gray-300">
-                    <Button
-                      variant="ghost"
-                      onClick={() => handleSort("margin")}
-                      className="text-gray-300 hover:text-white p-0 h-auto font-medium"
-                    >
-                      Margin %
-                      {sortField === "margin" &&
-                        (sortDirection === "asc" ? (
-                          <ArrowUpIcon className="ml-1 h-4 w-4" />
-                        ) : (
-                          <ArrowDownIcon className="ml-1 h-4 w-4" />
-                        ))}
-                    </Button>
-                  </TableHead>
-                  <TableHead className="text-gray-300">Owner</TableHead>
+                  <TableHead className="text-gray-300">1P C-ASIN</TableHead>
+                  <TableHead className="text-gray-300">Positioning</TableHead>
+                  <TableHead className="text-gray-300">Price Recommendation</TableHead>
+                  <TableHead className="text-gray-300">FLC Check</TableHead>
+                  <TableHead className="text-gray-300">PCOGS+IB Check</TableHead>
+                  <TableHead className="text-gray-300">CMT Valid</TableHead>
+                  <TableHead className="text-gray-300">Last Updated</TableHead>
                   <TableHead className="text-gray-300">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedData.map((item) => (
-                  <TableRow key={item.asin} className="border-gray-800 hover:bg-gray-800/50">
-                    <TableCell className="font-mono text-blue-400">{item.asin}</TableCell>
+                {sortedData.map((item, index) => (
+                  <TableRow key={item['PB C-ASIN'] || index} className="border-gray-800 hover:bg-gray-800/50">
+                    <TableCell className="font-mono text-blue-400">{item['PB C-ASIN'] || '-'}</TableCell>
+                    <TableCell className="text-white">{item['1P C-ASIN'] || '-'}</TableCell>
                     <TableCell>
-                      <div>
-                        <div className="text-white font-medium">{item.title}</div>
-                        <div className="text-gray-400 text-sm">{item.category}</div>
-                      </div>
+                      {item.positioning && (
+                        <Badge className={getLLMBadgeColor(item.positioning)}>
+                          {item.positioning}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="text-white font-medium">${item.currentPrice}</span>
-                        {item.currentPrice < item.basePrice ? (
-                          <TrendingDownIcon className="h-4 w-4 text-red-400" />
-                        ) : (
-                          <TrendingUpIcon className="h-4 w-4 text-green-400" />
-                        )}
-                      </div>
-                      <div className="text-gray-400 text-sm">Base: ${item.basePrice}</div>
+                      {(item.pricing_recommendation || item.price_recommendation) && (
+                        <Badge className={getDecisionBadgeColor(item.pricing_recommendation || item.price_recommendation || '')}>
+                          {(item.pricing_recommendation || item.price_recommendation || '').toLowerCase().includes('revert to base') 
+                            ? 'CP/ROI Pricing' 
+                            : (item.pricing_recommendation || item.price_recommendation)}
+                        </Badge>
+                      )}
                     </TableCell>
+                    <TableCell className="text-white">{item['FLC Check'] || '-'}</TableCell>
+                    <TableCell className="text-white">{item['PCOGS+IB-VCCC Check'] || item['PCOGS+IB-VFCC Check'] || '-'}</TableCell>
                     <TableCell>
-                      <Badge className={getDecisionBadgeColor(item.decision)}>{item.decision}</Badge>
+                      {item.is_valid_cmt && (
+                        <Badge className={
+                          (item.is_valid_cmt === true || item.is_valid_cmt === 'TRUE' || item.is_valid_cmt === 'true')
+                            ? "bg-green-500/20 text-green-400"
+                            : "bg-red-500/20 text-red-400"
+                        }>
+                          {(item.is_valid_cmt === true || item.is_valid_cmt === 'TRUE' || item.is_valid_cmt === 'true') ? 'Valid' : 'Invalid'}
+                        </Badge>
+                      )}
                     </TableCell>
-                    <TableCell>
-                      <Badge className={getLLMBadgeColor(item.llmClassification)}>{item.llmClassification}</Badge>
+                    <TableCell className="text-gray-300 text-xs">
+                      {item._lastUpdated 
+                        ? new Date(item._lastUpdated).toLocaleString()
+                        : '-'
+                      }
                     </TableCell>
-                    <TableCell>
-                      <div className="text-white font-medium">${item.revenue.toLocaleString()}</div>
-                      <div className="text-gray-400 text-sm">{item.units} units</div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="text-white font-medium">{item.margin}%</span>
-                        {item.margin > 25 ? (
-                          <div className="w-2 h-2 bg-green-500 rounded-full" />
-                        ) : item.margin > 15 ? (
-                          <div className="w-2 h-2 bg-yellow-500 rounded-full" />
-                        ) : (
-                          <div className="w-2 h-2 bg-red-500 rounded-full" />
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-gray-300">{item.owner}</TableCell>
                     <TableCell>
                       <Dialog>
                         <DialogTrigger asChild>

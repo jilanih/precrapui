@@ -38,7 +38,15 @@ export function DashboardHeader() {
             {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
           </Button>
 
-          <Button variant="outline" size="sm">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => {
+              if (typeof window !== 'undefined' && (window as any).workflowRefresh) {
+                (window as any).workflowRefresh()
+              }
+            }}
+          >
             <RefreshCw className="h-4 w-4" />
           </Button>
 
@@ -47,8 +55,16 @@ export function DashboardHeader() {
             Export
           </Button>
 
-          <Button variant="outline" size="sm">
-            <Settings className="h-4 w-4" />
+          <Button 
+            variant="destructive" 
+            size="sm"
+            onClick={() => {
+              if (typeof window !== 'undefined' && (window as any).workflowClearAll) {
+                (window as any).workflowClearAll()
+              }
+            }}
+          >
+            Clear All
           </Button>
         </div>
       </div>

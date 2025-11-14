@@ -46,7 +46,7 @@ export function aggregateWorkflowStats(data: WorkflowRecord[]) {
   const stats = {
     totalRecords: records.length,
     priceMatch: 0,
-    revertToBase: 0,
+    cpRoiPricing: 0,
     comparable: 0,
     underSpec: 0,
     overSpec: 0,
@@ -67,8 +67,8 @@ export function aggregateWorkflowStats(data: WorkflowRecord[]) {
     if (priceRec && priceRec.toLowerCase().includes("price match")) {
       stats.priceMatch++
     }
-    if (priceRec && priceRec.toLowerCase().includes("revert to base")) {
-      stats.revertToBase++
+    if (priceRec && (priceRec.toLowerCase().includes("cp/roi pricing") || priceRec.toLowerCase().includes("revert to base"))) {
+      stats.cpRoiPricing++
     }
 
     // Count positioning (spec classifications)

@@ -197,6 +197,19 @@ export async function POST(request: NextRequest) {
       !existingRecords.some((e: any) => e['PB C-ASIN'] === r['PB C-ASIN'])
     ).length
     
+    // Update RBM Time Saved for all processed ASINs (including updates)
+    if (newRecords.length > 0) {
+      try {
+        await fetch('http://localhost:3000/api/rbm-time-saved', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ asinCount: newRecords.length })
+        })
+      } catch (error) {
+        console.error('Error updating RBM time saved:', error)
+      }
+    }
+    
     return NextResponse.json({ 
       success: true, 
       message: 'File uploaded and data merged successfully',

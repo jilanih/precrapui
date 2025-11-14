@@ -1,5 +1,8 @@
+"use client"
+
 import { cn } from "@/lib/utils"
 import { BarChart3, TrendingUp, Filter, Activity, Package, AlertTriangle, CheckCircle, Clock } from "lucide-react"
+import { useEffect, useState } from "react"
 
 const navigationItems = [
   {
@@ -42,6 +45,33 @@ const navigationItems = [
 ]
 
 export function DashboardSidebar() {
+  const [totalProcessed, setTotalProcessed] = useState<number>(0)
+  const [totalExecutions, setTotalExecutions] = useState<number>(0)
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        // Load RBM Time Saved to calculate total processed ASINs
+        const rbmResponse = await fetch('/api/rbm-time-saved')
+        if (rbmResponse.ok) {
+          const rbmData = await rbmResponse.json()
+          const totalMinutes = rbmData.totalMinutes || 0
+          // Each ASIN takes 15 minutes, so divide by 15
+          setTotalProcessed(Math.round(totalMinutes / 15))
+          // Track executions count if available
+          setTotalExecutions(rbmData.executionCount || 0)
+        }
+      } catch (error) {
+        console.error('Error loading sidebar data:', error)
+      }
+    }
+    
+    loadData()
+    // Auto-refresh every 5 minutes
+    const interval = setInterval(loadData, 300000)
+    return () => clearInterval(interval)
+  }, [])
+
   return (
     <aside className="w-64 border-r border-border bg-sidebar">
       <div className="p-6">
@@ -89,15 +119,15 @@ export function DashboardSidebar() {
         <div className="space-y-2">
           <div className="flex items-center space-x-2 text-xs">
             <CheckCircle className="h-3 w-3 text-chart-2" />
-            <span className="text-sidebar-foreground">Active: 1,247 ASINs</span>
+            <span className="text-sidebar-foreground">Active: {totalProcessed.toLocaleString()} ASINs</span>
           </div>
           <div className="flex items-center space-x-2 text-xs">
             <Clock className="h-3 w-3 text-chart-3" />
-            <span className="text-sidebar-foreground">Processing: 23 ASINs</span>
+            <span className="text-sidebar-foreground">Total Executions: {totalExecutions}</span>
           </div>
           <div className="flex items-center space-x-2 text-xs">
             <AlertTriangle className="h-3 w-3 text-chart-4" />
-            <span className="text-sidebar-foreground">Manual Review: 5 ASINs</span>
+            <span className="text-sidebar-foreground">Output Error: 6</span>
           </div>
         </div>
       </div>

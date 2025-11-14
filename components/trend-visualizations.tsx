@@ -237,7 +237,7 @@ function RevenueImpactChart() {
       <CardHeader>
         <CardTitle className="flex items-center space-x-2">
           <DollarSign className="h-5 w-5" />
-          <span>Revenue Impact by Category</span>
+          <span>CP Impact by Category</span>
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -346,9 +346,6 @@ export function TrendVisualizations() {
 
       {/* Revenue Impact */}
       <RevenueImpactChart />
-
-      {/* Workflow Efficiency */}
-      <WorkflowEfficiencyChart />
 
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

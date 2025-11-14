@@ -1,8 +1,10 @@
 import type React from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle, DollarSign, Package, Brain } from "lucide-react"
+import { fetchWorkflowData, type WorkflowRecord } from "@/lib/workflow-data"
 
 interface MetricCardProps {
   title: string
@@ -13,9 +15,10 @@ interface MetricCardProps {
   }
   icon: React.ComponentType<{ className?: string }>
   description?: string
+  valueColor?: string
 }
 
-function MetricCard({ title, value, change, icon: Icon, description }: MetricCardProps) {
+function MetricCard({ title, value, change, icon: Icon, description, valueColor }: MetricCardProps) {
   const getTrendIcon = () => {
     if (!change) return null
     switch (change.trend) {
@@ -47,7 +50,7 @@ function MetricCard({ title, value, change, icon: Icon, description }: MetricCar
         <Icon className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold text-foreground">{value}</div>
+        <div className={`text-2xl font-bold ${valueColor || 'text-foreground'}`}>{value}</div>
         {change && (
           <div className={`flex items-center space-x-1 text-xs mt-1 ${getTrendColor()}`}>
             {getTrendIcon()}
@@ -115,7 +118,7 @@ function LLMClassification({ data }: LLMClassificationProps) {
       <CardHeader>
         <CardTitle className="flex items-center space-x-2">
           <Brain className="h-5 w-5" />
-          <span>LLM Product Classifications</span>
+          <span>Spec Comparison Results</span>
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -141,9 +144,9 @@ function LLMClassification({ data }: LLMClassificationProps) {
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span>Classification Accuracy</span>
-              <span className="font-medium">94.2%</span>
+              <span className="font-medium">85.9%</span>
             </div>
-            <Progress value={94.2} className="h-2" />
+            <Progress value={85.9} className="h-2" />
           </div>
         </div>
       </CardContent>
@@ -153,57 +156,67 @@ function LLMClassification({ data }: LLMClassificationProps) {
 
 interface ValidationMetricsProps {
   cmt: {
-    passed: number
-    failed: number
-    pending: number
+    vmAccretive: number
+    vmDilutive: number
+    vmAccretivePercentage: number
+    vmDilutivePercentage: number
+    cmAccretive: number
+    cmDilutive: number
+    cmAccretivePercentage: number
+    cmDilutivePercentage: number
   }
   costChecks: {
     flc: number
+    flcTotal: number
+    flcPass: number
     pcogs: number
-    packaging: number
-    shipping: number
+    pcogsTotal: number
+    pcogsPass: number
+    cts: number
+    ctsTotal: number
+    ctsPass: number
+    freight: number
+    freightTotal: number
+    freightPass: number
   }
 }
 
 function ValidationMetrics({ cmt, costChecks }: ValidationMetricsProps) {
   const cmtTotal = cmt.passed + cmt.failed + cmt.pending
-  const cmtPassRate = (cmt.passed / cmtTotal) * 100
-
-  const costCheckTotals = {
-    flc: 1200,
-    pcogs: 1150,
-    packaging: 1180,
-    shipping: 1100,
-  }
+  const cmtPassRate = cmtTotal > 0 ? ((cmt.passed / cmtTotal) * 100).toFixed(1) : '0'
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <Card>
         <CardHeader>
-          <CardTitle>CMT Validation Status</CardTitle>
+          <CardTitle>Accretiveness</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm">Pass Rate</span>
-              <span className="text-lg font-bold text-chart-2">{cmtPassRate.toFixed(1)}%</span>
-            </div>
-            <Progress value={cmtPassRate} className="h-2" />
-
-            <div className="grid grid-cols-3 gap-4 text-center text-sm">
-              <div>
-                <div className="font-bold text-chart-2">{cmt.passed}</div>
-                <div className="text-muted-foreground">Passed</div>
+              <div className="flex items-center space-x-2">
+                <div className="h-3 w-3 rounded-full bg-chart-2"></div>
+                <span className="text-sm font-medium">VM Accretive</span>
               </div>
-              <div>
-                <div className="font-bold text-chart-4">{cmt.failed}</div>
-                <div className="text-muted-foreground">Failed</div>
-              </div>
-              <div>
-                <div className="font-bold text-chart-3">{cmt.pending}</div>
-                <div className="text-muted-foreground">Pending</div>
+              <div className="text-right">
+                <div className="text-sm font-bold">{cmt.vmAccretive.toLocaleString()}</div>
+                <div className="text-xs text-muted-foreground">{cmt.vmAccretivePercentage}%</div>
               </div>
             </div>
+            <Progress value={cmt.vmAccretivePercentage} className="h-2" />
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="h-3 w-3 rounded-full bg-chart-4"></div>
+                <span className="text-sm font-medium">VM Dilutive</span>
+              </div>
+              <div className="text-right">
+                <div className="text-sm font-bold">{cmt.vmDilutive.toLocaleString()}</div>
+                <div className="text-xs text-muted-foreground">{cmt.vmDilutivePercentage}%</div>
+              </div>
+            </div>
+            <Progress value={cmt.vmDilutivePercentage} className="h-2" />
           </div>
         </CardContent>
       </Card>
@@ -214,46 +227,70 @@ function ValidationMetrics({ cmt, costChecks }: ValidationMetricsProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm">FLC Validation</span>
-              <div className="flex items-center space-x-2">
-                <span className="text-xs text-muted-foreground">
-                  {Math.round((costChecks.flc / 100) * costCheckTotals.flc)}/{costCheckTotals.flc}
-                </span>
-                <Badge variant={costChecks.flc > 80 ? "default" : "destructive"}>{costChecks.flc}% Pass</Badge>
+            {costChecks.flcTotal > 0 ? (
+              <div className="flex items-center justify-between">
+                <span className="text-sm">FLC Validation</span>
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs text-muted-foreground">
+                    {costChecks.flcPass}/{costChecks.flcTotal}
+                  </span>
+                  <Badge variant={costChecks.flc >= 50 ? "default" : "destructive"}>{costChecks.flc}% Pass</Badge>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">PCOGS + IB</span>
-              <div className="flex items-center space-x-2">
-                <span className="text-xs text-muted-foreground">
-                  {Math.round((costChecks.pcogs / 100) * costCheckTotals.pcogs)}/{costCheckTotals.pcogs}
-                </span>
-                <Badge variant={costChecks.pcogs > 75 ? "default" : "destructive"}>{costChecks.pcogs}% Pass</Badge>
+            ) : (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">FLC Validation</span>
+                <Badge variant="secondary">No data</Badge>
               </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Packaging</span>
-              <div className="flex items-center space-x-2">
-                <span className="text-xs text-muted-foreground">
-                  {Math.round((costChecks.packaging / 100) * costCheckTotals.packaging)}/{costCheckTotals.packaging}
-                </span>
-                <Badge variant={costChecks.packaging > 85 ? "default" : "destructive"}>
-                  {costChecks.packaging}% Pass
-                </Badge>
+            )}
+            {costChecks.pcogsTotal > 0 ? (
+              <div className="flex items-center justify-between">
+                <span className="text-sm">PCOGS + IB</span>
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs text-muted-foreground">
+                    {costChecks.pcogsPass}/{costChecks.pcogsTotal}
+                  </span>
+                  <Badge variant={costChecks.pcogs >= 50 ? "default" : "destructive"}>{costChecks.pcogs}% Pass</Badge>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Shipping COGS</span>
-              <div className="flex items-center space-x-2">
-                <span className="text-xs text-muted-foreground">
-                  {Math.round((costChecks.shipping / 100) * costCheckTotals.shipping)}/{costCheckTotals.shipping}
-                </span>
-                <Badge variant={costChecks.shipping > 70 ? "default" : "destructive"}>
-                  {costChecks.shipping}% Pass
-                </Badge>
+            ) : (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">PCOGS + IB</span>
+                <Badge variant="secondary">No data</Badge>
               </div>
-            </div>
+            )}
+            {costChecks.ctsTotal > 0 ? (
+              <div className="flex items-center justify-between">
+                <span className="text-sm">CTS Check</span>
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs text-muted-foreground">
+                    {costChecks.ctsPass}/{costChecks.ctsTotal}
+                  </span>
+                  <Badge variant={costChecks.cts >= 50 ? "default" : "destructive"}>{costChecks.cts}% Pass</Badge>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">CTS Check</span>
+                <Badge variant="secondary">No data</Badge>
+              </div>
+            )}
+            {costChecks.freightTotal > 0 ? (
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Freight Cost Increase &lt;20%</span>
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs text-muted-foreground">
+                    {costChecks.freightPass}/{costChecks.freightTotal}
+                  </span>
+                  <Badge variant={costChecks.freight >= 50 ? "default" : "destructive"}>{costChecks.freight}% Pass</Badge>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Freight Cost Increase &lt;20%</span>
+                <Badge variant="secondary">No data</Badge>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -262,54 +299,233 @@ function ValidationMetrics({ cmt, costChecks }: ValidationMetricsProps) {
 }
 
 export function AnalyticsOverview() {
-  // Mock data - in real implementation, this would come from API
+  const [data, setData] = useState<WorkflowRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [rbmTimeSaved, setRbmTimeSaved] = useState<number>(0)
+
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true)
+      try {
+        const workflowData = await fetchWorkflowData()
+        setData(Array.isArray(workflowData) ? workflowData : [])
+        
+        // Load RBM Time Saved
+        const rbmResponse = await fetch('/api/rbm-time-saved')
+        if (rbmResponse.ok) {
+          const rbmData = await rbmResponse.json()
+          setRbmTimeSaved(rbmData.totalMinutes || 0)
+        }
+      } catch (error) {
+        console.error('Error loading analytics data:', error)
+        setData([])
+      }
+      setLoading(false)
+    }
+    
+    loadData()
+    // Auto-refresh every 5 minutes
+    const interval = setInterval(loadData, 300000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Calculate real metrics from data
+  const totalASINs = data.length
+  
+  const priceMatchCount = data.filter(r => {
+    const rec = (r.pricing_recommendation || r.price_recommendation || '').toLowerCase()
+    return rec.includes('price match')
+  }).length
+  
+  const cpRoiPricingCount = data.filter(r => {
+    const rec = (r.pricing_recommendation || r.price_recommendation || '').toLowerCase()
+    return rec.includes('revert to base') || rec.includes('cp/roi pricing')
+  }).length
+  
+  const priceMatchPercentage = totalASINs > 0 ? ((priceMatchCount / totalASINs) * 100).toFixed(1) : '0'
+  
+  const overspecCount = data.filter(r => {
+    const pos = (r.positioning || '').toLowerCase()
+    return pos.includes('over-spec') || pos.includes('overspec')
+  }).length
+  
+  const underspecCount = data.filter(r => {
+    const pos = (r.positioning || '').toLowerCase()
+    return pos.includes('under-spec') || pos.includes('underspec')
+  }).length
+  
+  const comparableCount = data.filter(r => {
+    const pos = (r.positioning || '').toLowerCase()
+    return pos.includes('comparable')
+  }).length
+  
+  const flcPassCount = data.filter(r => {
+    const flc = (r['FLC Check'] || '').toLowerCase()
+    return flc.includes('pass')
+  }).length
+  
+  const flcFailCount = data.filter(r => {
+    const flc = (r['FLC Check'] || '').toLowerCase()
+    return flc.includes('fail')
+  }).length
+  
+  const flcTotal = flcPassCount + flcFailCount
+  const flcPassRate = flcTotal > 0 ? Math.round((flcPassCount / flcTotal) * 100) : 0
+  
+  const pcogsPassCount = data.filter(r => {
+    const pcogs = (r['PCOGS+IB-VFCC Check'] || r['PCOGS+IB-VCCC Check'] || '').toLowerCase()
+    return pcogs.includes('pass') || pcogs.includes('skipped')
+  }).length
+  
+  const pcogsFailCount = data.filter(r => {
+    const pcogs = (r['PCOGS+IB-VFCC Check'] || r['PCOGS+IB-VCCC Check'] || '').toLowerCase()
+    return pcogs.includes('fail')
+  }).length
+  
+  const pcogsTotal = pcogsPassCount + pcogsFailCount
+  const pcogsPassRate = pcogsTotal > 0 ? Math.round((pcogsPassCount / pcogsTotal) * 100) : 0
+
+  // VM Accretiveness
+  const vmAccretiveCount = data.filter(r => {
+    const vm = (r['VM Accretiveness'] || '').toLowerCase()
+    return vm.includes('accretive') && !vm.includes('decretive')
+  }).length
+  
+  const vmDilutiveCount = data.filter(r => {
+    const vm = (r['VM Accretiveness'] || '').toLowerCase()
+    return vm.includes('decretive')
+  }).length
+
+  const vmTotal = vmAccretiveCount + vmDilutiveCount
+  const vmAccretivePercentage = vmTotal > 0 ? parseFloat(((vmAccretiveCount / vmTotal) * 100).toFixed(1)) : 0
+  const vmDilutivePercentage = vmTotal > 0 ? parseFloat(((vmDilutiveCount / vmTotal) * 100).toFixed(1)) : 0
+
+  // CM Accretiveness
+  const cmAccretiveCount = data.filter(r => {
+    const cm = (r['CM Accretiveness'] || '').toLowerCase()
+    return cm.includes('accretive') && !cm.includes('decretive')
+  }).length
+  
+  const cmDilutiveCount = data.filter(r => {
+    const cm = (r['CM Accretiveness'] || '').toLowerCase()
+    return cm.includes('decretive')
+  }).length
+
+  const cmTotal = cmAccretiveCount + cmDilutiveCount
+  const cmAccretivePercentage = cmTotal > 0 ? parseFloat(((cmAccretiveCount / cmTotal) * 100).toFixed(1)) : 0
+  const cmDilutivePercentage = cmTotal > 0 ? parseFloat(((cmDilutiveCount / cmTotal) * 100).toFixed(1)) : 0
+
+  // CTS Check
+  const ctsPassCount = data.filter(r => {
+    const cts = (r['CTS Check'] || '').toLowerCase()
+    return cts.includes('competitive') && !cts.includes('uncompetitive')
+  }).length
+  
+  const ctsFailCount = data.filter(r => {
+    const cts = (r['CTS Check'] || '').toLowerCase()
+    return cts.includes('uncompetitive')
+  }).length
+  
+  const ctsTotal = ctsPassCount + ctsFailCount
+  const ctsPassRate = ctsTotal > 0 ? Math.round((ctsPassCount / ctsTotal) * 100) : 0
+
+  // Freight Cost Increase
+  const freightPassCount = data.filter(r => {
+    const freight = (r['Freight Cost Increase >20%'] || '').toLowerCase()
+    return freight.includes('pass')
+  }).length
+  
+  const freightFailCount = data.filter(r => {
+    const freight = (r['Freight Cost Increase >20%'] || '').toLowerCase()
+    return freight.includes('fail')
+  }).length
+  
+  const freightTotal = freightPassCount + freightFailCount
+  const freightPassRate = freightTotal > 0 ? Math.round((freightPassCount / freightTotal) * 100) : 0
+
   const metrics = [
     {
       title: "Total ASINs Processed",
-      value: "1,275",
-      change: { value: "+12% from last week", trend: "up" as const },
+      value: totalASINs.toLocaleString(),
       icon: Package,
-      description: "24h processing volume",
-    },
-    {
-      title: "Revenue Impact",
-      value: "$2.4M",
-      change: { value: "+8.3% from last week", trend: "up" as const },
-      icon: DollarSign,
-      description: "Estimated weekly impact",
+      description: "Current workflow data",
     },
     {
       title: "Price Match Success",
-      value: "66.4%",
-      change: { value: "-2.1% from last week", trend: "down" as const },
+      value: `${priceMatchPercentage}%`,
       icon: CheckCircle,
       description: "Competitive pricing achieved",
     },
     {
-      title: "Manual Reviews",
-      value: "23",
-      change: { value: "Stable", trend: "neutral" as const },
+      title: "VM Accretive",
+      value: `${vmAccretivePercentage}%`,
+      icon: DollarSign,
+      description: "Of total ASINs processed",
+    },
+    {
+      title: "RBM Time Saved",
+      value: (rbmTimeSaved / 60).toFixed(1),
       icon: AlertTriangle,
-      description: "Requiring human intervention",
+      description: "Hours (cumulative)",
+      valueColor: "text-teal-600",
     },
   ]
 
   const decisionOutcomes = [
-    { label: "Price Match", value: 847, percentage: 66.4, color: "bg-chart-2" },
-    { label: "Revert to Base", value: 405, percentage: 31.8, color: "bg-chart-3" },
-    { label: "Manual Review", value: 23, percentage: 1.8, color: "bg-chart-4" },
+    { 
+      label: "Price Match", 
+      value: priceMatchCount, 
+      percentage: totalASINs > 0 ? parseFloat(((priceMatchCount / totalASINs) * 100).toFixed(1)) : 0, 
+      color: "bg-chart-2" 
+    },
+    { 
+      label: "CP/ROI Pricing", 
+      value: cpRoiPricingCount, 
+      percentage: totalASINs > 0 ? parseFloat(((cpRoiPricingCount / totalASINs) * 100).toFixed(1)) : 0, 
+      color: "bg-chart-3" 
+    },
   ]
 
   const llmData = {
-    overspec: 342,
-    underspec: 189,
-    comparable: 667,
-    total: 1198,
+    overspec: overspecCount,
+    underspec: underspecCount,
+    comparable: comparableCount,
+    total: overspecCount + underspecCount + comparableCount,
   }
 
   const validationData = {
-    cmt: { passed: 1089, failed: 156, pending: 30 },
-    costChecks: { flc: 87, pcogs: 79, packaging: 92, shipping: 74 },
+    cmt: { 
+      vmAccretive: vmAccretiveCount,
+      vmDilutive: vmDilutiveCount,
+      vmAccretivePercentage: vmAccretivePercentage,
+      vmDilutivePercentage: vmDilutivePercentage,
+      cmAccretive: cmAccretiveCount,
+      cmDilutive: cmDilutiveCount,
+      cmAccretivePercentage: cmAccretivePercentage,
+      cmDilutivePercentage: cmDilutivePercentage
+    },
+    costChecks: { 
+      flc: flcPassRate, 
+      flcTotal: flcTotal,
+      flcPass: flcPassCount,
+      pcogs: pcogsPassRate,
+      pcogsTotal: pcogsTotal, 
+      pcogsPass: pcogsPassCount,
+      cts: ctsPassRate,
+      ctsTotal: ctsTotal,
+      ctsPass: ctsPassCount,
+      freight: freightPassRate,
+      freightTotal: freightTotal,
+      freightPass: freightPassCount
+    },
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-muted-foreground">Loading analytics...</div>
+      </div>
+    )
   }
 
   return (
