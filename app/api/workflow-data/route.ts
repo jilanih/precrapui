@@ -3,10 +3,10 @@ import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3
 
 const s3Client = new S3Client({ 
   region: process.env.NEXT_PUBLIC_AWS_REGION || 'us-east-2',
-  credentials: process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY ? {
-    accessKeyId: process.env.S3_ACCESS_KEY_ID,
-    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY
-  } : undefined
+  credentials: {
+    accessKeyId: process.env.S3_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || ''
+  }
 })
 const BUCKET_NAME = process.env.NEXT_PUBLIC_S3_BUCKET || 'precrapui-dashboard-data-jilanih-us-east-2'
 
@@ -127,6 +127,10 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   try {
+    console.log('Fetching workflow data from S3...')
+    console.log('Bucket:', BUCKET_NAME)
+    console.log('Has credentials:', !!process.env.S3_ACCESS_KEY_ID)
+    
     const command = new GetObjectCommand({
       Bucket: BUCKET_NAME,
       Key: 'workflow-data.json'
@@ -136,17 +140,19 @@ export async function GET() {
     const fileContent = await response.Body?.transformToString()
     
     if (!fileContent) {
+      console.log('No file content returned')
       return NextResponse.json({ data: [] })
     }
     
     const data = JSON.parse(fileContent)
+    console.log('Successfully loaded', data.length, 'records')
     return NextResponse.json({ data })
   } catch (error: any) {
+    console.error('Error reading workflow data from S3:', error.name, error.message)
     if (error.name === 'NoSuchKey') {
-      return NextResponse.json({ data: [] })
+      return NextResponse.json({ data: [], error: 'File not found' })
     }
-    console.error('Error reading workflow data from S3:', error)
-    return NextResponse.json({ data: [] })
+    return NextResponse.json({ data: [], error: error.message })
   }
 }
 
