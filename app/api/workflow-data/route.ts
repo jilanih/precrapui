@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeFile } from 'fs/promises'
-import path from 'path'
+import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
+
+const s3Client = new S3Client({ 
+  region: process.env.NEXT_PUBLIC_AWS_REGION || 'us-east-2',
+  credentials: process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY ? {
+    accessKeyId: process.env.S3_ACCESS_KEY_ID,
+    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY
+  } : undefined
+})
+const BUCKET_NAME = process.env.NEXT_PUBLIC_S3_BUCKET || 'precrapui-dashboard-data-jilanih-us-east-2'
 
 // Simple in-memory lock to prevent race conditions
 let isWriting = false
-const writeQueue: Array<() => Promise<void>> = []
 
 async function acquireLock() {
   while (isWriting) {
@@ -41,19 +48,25 @@ export async function POST(request: NextRequest) {
       _lastUpdated: timestamp
     }))
     
-    // Read existing data
-    const dataPath = path.join(process.cwd(), 'public', 'workflow-data.json')
-    const fs = require('fs')
+    // Read existing data from S3
     let existingRecords: any[] = []
     
-    if (fs.existsSync(dataPath)) {
-      try {
-        const fileContent = await fs.promises.readFile(dataPath, 'utf-8')
+    try {
+      const getCommand = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: 'workflow-data.json'
+      })
+      const response = await s3Client.send(getCommand)
+      const fileContent = await response.Body?.transformToString()
+      
+      if (fileContent) {
         existingRecords = JSON.parse(fileContent)
-      } catch (error) {
-        console.log('No existing data or invalid JSON, starting fresh')
-        existingRecords = []
       }
+    } catch (error: any) {
+      if (error.name !== 'NoSuchKey') {
+        console.error('Error reading from S3:', error)
+      }
+      existingRecords = []
     }
     
     // Merge and deduplicate by PB C-ASIN
@@ -78,8 +91,15 @@ export async function POST(request: NextRequest) {
     // Convert back to array
     const finalRecords = Array.from(mergedMap.values())
     
-    // Save merged data
-    await writeFile(dataPath, JSON.stringify(finalRecords, null, 2))
+    // Save merged data to S3
+    const putCommand = new PutObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: 'workflow-data.json',
+      Body: JSON.stringify(finalRecords, null, 2),
+      ContentType: 'application/json'
+    })
+    
+    await s3Client.send(putCommand)
     
     const newASINCount = recordsWithTimestamp.filter((r: any) => 
       !existingRecords.some((e: any) => e['PB C-ASIN'] === r['PB C-ASIN'])
@@ -107,34 +127,46 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   try {
-    const dataPath = path.join(process.cwd(), 'public', 'workflow-data.json')
-    const fs = require('fs')
+    const command = new GetObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: 'workflow-data.json'
+    })
     
-    if (!fs.existsSync(dataPath)) {
+    const response = await s3Client.send(command)
+    const fileContent = await response.Body?.transformToString()
+    
+    if (!fileContent) {
       return NextResponse.json({ data: [] })
     }
     
-    const fileContent = await fs.promises.readFile(dataPath, 'utf-8')
     const data = JSON.parse(fileContent)
-    
     return NextResponse.json({ data })
-  } catch (error) {
-    console.error('Error reading workflow data:', error)
+  } catch (error: any) {
+    if (error.name === 'NoSuchKey') {
+      return NextResponse.json({ data: [] })
+    }
+    console.error('Error reading workflow data from S3:', error)
     return NextResponse.json({ data: [] })
   }
 }
 
 export async function DELETE() {
   try {
-    const dataPath = path.join(process.cwd(), 'public', 'workflow-data.json')
-    await writeFile(dataPath, JSON.stringify([], null, 2))
+    const putCommand = new PutObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: 'workflow-data.json',
+      Body: JSON.stringify([], null, 2),
+      ContentType: 'application/json'
+    })
+    
+    await s3Client.send(putCommand)
     
     return NextResponse.json({ 
       success: true, 
       message: 'All workflow data cleared' 
     })
   } catch (error) {
-    console.error('Error clearing workflow data:', error)
+    console.error('Error clearing workflow data from S3:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to clear data' },
       { status: 500 }
