@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeFile } from 'fs/promises'
-import path from 'path'
+import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
+
+const s3Client = new S3Client({ 
+  region: process.env.NEXT_PUBLIC_AWS_REGION || 'us-east-2',
+  credentials: process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY ? {
+    accessKeyId: process.env.S3_ACCESS_KEY_ID,
+    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY
+  } : undefined
+})
+const BUCKET_NAME = process.env.NEXT_PUBLIC_S3_BUCKET || 'precrapui-dashboard-data-jilanih-us-east-2'
 
 // Simple in-memory lock to prevent race conditions
 let isWriting = false
@@ -40,19 +48,25 @@ export async function POST(request: NextRequest) {
       _lastUpdated: timestamp
     }))
     
-    // Read existing data
-    const dataPath = path.join(process.cwd(), 'public', 'workflow-data.json')
-    const fs = require('fs')
+    // Read existing data from S3
     let existingRecords: any[] = []
     
-    if (fs.existsSync(dataPath)) {
-      try {
-        const fileContent = await fs.promises.readFile(dataPath, 'utf-8')
+    try {
+      const getCommand = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: 'workflow-data.json'
+      })
+      const response = await s3Client.send(getCommand)
+      const fileContent = await response.Body?.transformToString()
+      
+      if (fileContent) {
         existingRecords = JSON.parse(fileContent)
-      } catch (error) {
-        console.log('No existing data or invalid JSON, starting fresh')
-        existingRecords = []
       }
+    } catch (error: any) {
+      if (error.name !== 'NoSuchKey') {
+        console.error('Error reading from S3:', error)
+      }
+      existingRecords = []
     }
     
     // Merge and deduplicate by PB C-ASIN
@@ -77,8 +91,15 @@ export async function POST(request: NextRequest) {
     // Convert back to array
     const finalRecords = Array.from(mergedMap.values())
     
-    // Save merged data
-    await writeFile(dataPath, JSON.stringify(finalRecords, null, 2))
+    // Save merged data to S3
+    const putCommand = new PutObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: 'workflow-data.json',
+      Body: JSON.stringify(finalRecords, null, 2),
+      ContentType: 'application/json'
+    })
+    
+    await s3Client.send(putCommand)
     
     const newASINCount = recordsWithTimestamp.filter((r: any) => 
       !existingRecords.some((e: any) => e['PB C-ASIN'] === r['PB C-ASIN'])
@@ -106,12 +127,6 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   try {
-    console.log('Fetching workflow data from S3...')
-    console.log('Bucket:', BUCKET_NAME)
-    console.log('S3_ACCESS_KEY_ID exists:', !!process.env.S3_ACCESS_KEY_ID)
-    console.log('S3_ACCESS_KEY_ID value:', process.env.S3_ACCESS_KEY_ID ? 'SET' : 'NOT SET')
-    console.log('All env vars:', Object.keys(process.env).filter(k => k.includes('S3') || k.includes('AWS')))
-    
     const command = new GetObjectCommand({
       Bucket: BUCKET_NAME,
       Key: 'workflow-data.json'
@@ -121,19 +136,17 @@ export async function GET() {
     const fileContent = await response.Body?.transformToString()
     
     if (!fileContent) {
-      console.log('No file content returned')
       return NextResponse.json({ data: [] })
     }
     
     const data = JSON.parse(fileContent)
-    console.log('Successfully loaded', data.length, 'records')
     return NextResponse.json({ data })
   } catch (error: any) {
-    console.error('Error reading workflow data from S3:', error.name, error.message)
     if (error.name === 'NoSuchKey') {
-      return NextResponse.json({ data: [], error: 'File not found' })
+      return NextResponse.json({ data: [] })
     }
-    return NextResponse.json({ data: [], error: error.message })
+    console.error('Error reading workflow data from S3:', error)
+    return NextResponse.json({ data: [] })
   }
 }
 
