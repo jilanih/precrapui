@@ -17,15 +17,22 @@ interface FeedbackItem {
 export function FeedbackViewer() {
   const [feedback, setFeedback] = useState<FeedbackItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const loadFeedback = async () => {
     setLoading(true)
+    setError(null)
     try {
       const response = await fetch('/api/feedback')
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
       const data = await response.json()
-      setFeedback(data)
+      setFeedback(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error('Error loading feedback:', error)
+      setError(error instanceof Error ? error.message : 'Failed to load feedback')
+      setFeedback([])
     }
     setLoading(false)
   }
@@ -82,6 +89,10 @@ export function FeedbackViewer() {
         <CardContent>
           {loading ? (
             <div className="text-center py-8 text-muted-foreground">Loading...</div>
+          ) : error ? (
+            <div className="text-center py-8 text-red-600">
+              Error: {error}
+            </div>
           ) : feedback.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               No feedback submitted yet.
